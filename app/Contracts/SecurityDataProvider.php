@@ -11,4 +11,5 @@ interface SecurityDataProvider
     public function recentAlerts(array $filters = [], int $limit = 20): array;
     public function vulnSummary(): array;
     public function vulnerabilities(array $filters = [], int $limit = 20): array;
+    public function alertsPage(array $filters = [], int $page = 1, int $perPage = 20): array;
 }

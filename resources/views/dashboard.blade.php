@@ -72,6 +72,17 @@
                 <tbody id="alert-body"></tbody>
             </table>
         </div>
+                <div class="flex flex-wrap items-center justify-between gap-3 mt-4 text-sm">
+            <div class="flex items-center gap-3 text-slate-400">
+                <span id="alert-info">-</span>
+                <select id="alert-perpage" class="bg-slate-700 text-slate-100 rounded px-2 py-1">
+                    <option value="10">10 / halaman</option>
+                    <option value="20" selected>20 / halaman</option>
+                    <option value="50">50 / halaman</option>
+                </select>
+            </div>
+            <div id="alert-pager" class="flex items-center gap-1"></div>
+        </div>
     </div>
 
         <!-- Vulnerabilities -->
@@ -242,6 +253,70 @@ async function loadVulns() {
         </tr>`).join('');
 }
 
+let alertPage = 1;
+let alertLastPage = 1;
+
+function pageList(cur, last) {
+    const set = new Set([1, last, cur - 2, cur - 1, cur, cur + 1, cur + 2]);
+    const pages = [...set].filter(p => p >= 1 && p <= last).sort((a, b) => a - b);
+    const out = [];
+    pages.forEach((p, i) => {
+        if (i > 0 && p - pages[i - 1] > 1) out.push('...');
+        out.push(p);
+    });
+    return out;
+}
+
+function renderPager(cur, last) {
+    const btn = (label, page, disabled = false, active = false) => `
+        <button ${disabled ? 'disabled' : ''} onclick="goAlertPage(${page})"
+            class="min-w-8 px-2 py-1 rounded ${active ? 'bg-sky-600 text-white' : 'bg-slate-700 hover:bg-slate-600'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}">${label}</button>`;
+
+    let html = btn('‹', cur - 1, cur <= 1);
+    pageList(cur, last).forEach(p => {
+        html += p === '...'
+            ? '<span class="px-1 text-slate-500">…</span>'
+            : btn(p, p, false, p === cur);
+    });
+    html += btn('›', cur + 1, cur >= last);
+
+    document.getElementById('alert-pager').innerHTML = html;
+}
+
+function goAlertPage(p) {
+    if (p < 1 || p > alertLastPage) return;
+    alertPage = p;
+    loadAlerts();
+}
+
+async function loadAlerts() {
+    const params = new URLSearchParams({
+        page: alertPage,
+        per_page: document.getElementById('alert-perpage').value,
+        severity: document.getElementById('filter-severity').value,
+    });
+    const res = await fetch('/api/alerts?' + params);
+    const d = await res.json();
+
+    alertPage = d.page;
+    alertLastPage = d.last_page;
+
+    document.getElementById('alert-body').innerHTML = d.items.length
+        ? d.items.map(a => `
+            <tr class="border-b border-slate-700">
+                <td class="px-3 py-3 whitespace-nowrap">${new Date(a.detected_at).toLocaleString('id-ID')}</td>
+                <td class="px-3 py-3">${agentLink(a.agent)}</td>
+                <td class="px-3 py-3">${esc(a.rule)}</td>
+                <td class="px-3 py-3">${esc(a.level)}</td>
+                <td class="px-3 py-3"><span class="px-2 py-0.5 rounded text-xs ${sevColor[a.severity] ?? ''}">${esc(a.severity)}</span></td>
+            </tr>`).join('')
+        : '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">Tidak ada alert.</td></tr>';
+
+    const from = d.total === 0 ? 0 : (d.page - 1) * d.per_page + 1;
+    const to = Math.min(d.page * d.per_page, d.total);
+    document.getElementById('alert-info').textContent = `${from}–${to} dari ${d.total.toLocaleString('id-ID')}`;
+    renderPager(d.page, d.last_page);
+}
 function makeCharts() {
     timelineChart = new Chart(document.getElementById('timelineChart'), {
         type: 'line',
@@ -286,22 +361,18 @@ async function loadData() {
     attackChart.data.datasets[0].data = d.attacks.map(x => x.total);
     attackChart.update();
 
-    document.getElementById('alert-body').innerHTML = d.alerts.map(a => `
-        <tr class="border-b border-slate-700">
-            <td class="py-2">${new Date(a.detected_at).toLocaleString('id-ID')}</td>
-            <td>${agentLink(a.agent)}</td>
-            <td>${esc(a.rule)}</td>
-            <td>${esc(a.level)}</td>
-            <td><span class="px-2 py-0.5 rounded text-xs ${sevColor[a.severity] ?? ''}">${esc(a.severity)}</span></td>
-        </tr>`).join('');
+    
 }
 
 makeCharts();
 loadData();
 setInterval(loadData, 10000);
-document.getElementById('filter-severity').addEventListener('change', loadData);
 loadVulns();
 setInterval(loadVulns, 60000);
+document.getElementById('filter-severity').addEventListener('change', () => { alertPage = 1; loadAlerts(); });
+document.getElementById('alert-perpage').addEventListener('change', () => { alertPage = 1; loadAlerts(); });
+loadAlerts();
+setInterval(() => { if (alertPage === 1) loadAlerts(); }, 10000);
 document.getElementById('filter-vuln').addEventListener('change', loadVulns);
 </script>
 </body>

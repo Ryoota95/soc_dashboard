@@ -222,4 +222,61 @@ class OpenSearchProvider implements SecurityDataProvider
             ];
         })->all();
     }
+        private function severityFilter(array $filters): array
+    {
+        if (empty($filters['severity'])) {
+            return [];
+        }
+
+        $range = match ($filters['severity']) {
+            'critical' => ['gte' => $this->lv('critical')],
+            'high'     => ['gte' => $this->lv('high'), 'lt' => $this->lv('critical')],
+            'medium'   => ['gte' => $this->lv('medium'), 'lt' => $this->lv('high')],
+            'low'      => ['lt' => $this->lv('medium')],
+            default    => null,
+        };
+
+        return $range ? [['range' => [$this->f('level') => $range]]] : [];
+    }
+
+    private function alertRow(array $h): array
+    {
+        $s = $h['_source'];
+        $level = data_get($s, $this->f('level'));
+
+        return [
+            'detected_at' => data_get($s, $this->f('time')),
+            'agent'       => data_get($s, $this->f('agent')),
+            'rule'        => data_get($s, $this->f('rule')),
+            'level'       => $level,
+            'severity'    => $this->severityLabel($level),
+        ];
+    }
+
+    public function alertsPage(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $perPage = min(max($perPage, 1), 100);
+
+        // OpenSearch membatasi from + size maksimal 10.000
+        $maxPage = intdiv(10000, $perPage);
+        $page    = min(max($page, 1), $maxPage);
+
+        $r = $this->search([
+            'size'             => $perPage,
+            'from'             => ($page - 1) * $perPage,
+            'track_total_hits' => true,
+            'sort'             => [[$this->f('time') => 'desc']],
+            'query'            => ['bool' => ['filter' => $this->severityFilter($filters)]],
+        ]);
+
+        $total = $r['hits']['total']['value'] ?? 0;
+
+        return [
+            'items'     => collect($r['hits']['hits'] ?? [])->map(fn ($h) => $this->alertRow($h))->all(),
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $perPage,
+            'last_page' => min($maxPage, max(1, (int) ceil($total / $perPage))),
+        ];
+    }
 }

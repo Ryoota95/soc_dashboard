@@ -55,4 +55,25 @@ class DummyDataProvider implements SecurityDataProvider
     {
         return [];
     }
+        public function alertsPage(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $p = SecurityAlert::query()
+            ->when($filters['severity'] ?? null, fn ($q, $v) => $q->where('severity', $v))
+            ->latest('detected_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        return [
+            'items' => collect($p->items())->map(fn ($a) => [
+                'detected_at' => $a->detected_at,
+                'agent'       => $a->source_system,
+                'rule'        => $a->attack_type,
+                'level'       => null,
+                'severity'    => $a->severity,
+            ])->all(),
+            'total'     => $p->total(),
+            'page'      => $p->currentPage(),
+            'per_page'  => $perPage,
+            'last_page' => $p->lastPage(),
+        ];
+    }
 }

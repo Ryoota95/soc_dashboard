@@ -9,3 +9,4 @@ Route::get('/api/dashboard', [DashboardController::class, 'stats']);
 Route::get('/api/vulnerabilities', [DashboardController::class, 'vulnerabilities']);
 Route::get('/agents/{name}', [AgentController::class, 'show']);
 Route::get('/api/agents/{name}', [AgentController::class, 'data']);
+Route::get('/api/alerts', [DashboardController::class, 'alerts']);

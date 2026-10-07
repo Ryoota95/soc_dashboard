@@ -31,4 +31,12 @@ class DashboardController extends Controller
             'items'   => $this->data->vulnerabilities($request->only(['severity'])),
         ]);
     }
+        public function alerts(Request $request)
+    {
+        return response()->json($this->data->alertsPage(
+            $request->only(['severity']),
+            (int) $request->query('page', 1),
+            (int) $request->query('per_page', 20)
+        ));
+    }
 }
