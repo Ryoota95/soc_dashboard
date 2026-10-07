@@ -10,7 +10,7 @@
 <body class="bg-slate-900 text-slate-100 min-h-screen">
 <div class="max-w-7xl mx-auto p-6">
 
-    <h1 class="text-2xl font-bold mb-6">🛡️ SOC Security Dashboard</h1>
+    <h1 class="text-2xl font-bold mb-6"> SOC Security Dashboard</h1>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div class="bg-slate-800 p-4 rounded-lg">
@@ -73,8 +73,66 @@
             </table>
         </div>
     </div>
-</div>
 
+        <!-- Vulnerabilities -->
+    <div class="bg-slate-800 p-4 rounded-lg mt-6">
+        <div class="flex flex-wrap gap-2 items-center mb-4">
+            <h2 class="font-semibold mr-auto">Vulnerabilities</h2>
+            <select id="filter-vuln" class="bg-slate-700 rounded px-2 py-1 text-sm">
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+                <option value="">Semua</option>
+            </select>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+            <div class="bg-slate-700 p-3 rounded"><p class="text-slate-400 text-xs">Total</p><p id="vuln-total" class="text-2xl font-bold">-</p></div>
+            <div class="bg-slate-700 p-3 rounded"><p class="text-slate-400 text-xs">Critical</p><p id="vuln-critical" class="text-2xl font-bold text-red-400">-</p></div>
+            <div class="bg-slate-700 p-3 rounded"><p class="text-slate-400 text-xs">High</p><p id="vuln-high" class="text-2xl font-bold text-orange-400">-</p></div>
+            <div class="bg-slate-700 p-3 rounded"><p class="text-slate-400 text-xs">Medium</p><p id="vuln-medium" class="text-2xl font-bold text-yellow-400">-</p></div>
+            <div class="bg-slate-700 p-3 rounded"><p class="text-slate-400 text-xs">Low</p><p id="vuln-low" class="text-2xl font-bold text-blue-400">-</p></div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                               <thead class="text-slate-400 border-b border-slate-700">
+                    <tr>
+                        <th class="px-3 py-2 w-10"></th>
+                        <th class="px-3 py-2">Agent</th>
+                        <th class="px-3 py-2">Package</th>
+                        <th class="px-3 py-2">Versi</th>
+                        <th class="px-3 py-2">CVE</th>
+                        <th class="px-3 py-2">Severity</th>
+                        <th class="px-3 py-2">Deskripsi</th>
+                    </tr>
+                </thead>
+                <tbody id="vuln-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<!-- Modal detail vulnerability -->
+<div id="vuln-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+     onclick="if (event.target === this) closeVuln()">
+    <div class="bg-slate-800 rounded-lg w-full max-w-3xl max-h-[85vh] flex flex-col">
+        <div class="flex items-center justify-between p-4 border-b border-slate-700">
+            <h3 class="text-lg font-semibold">Vulnerability details</h3>
+            <button onclick="closeVuln()" class="text-slate-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+        <div class="flex gap-4 px-4 pt-3 border-b border-slate-700">
+            <button id="tab-table" onclick="switchVulnTab('table')"
+                    class="pb-2 border-b-2 border-sky-400 text-sky-400">Table</button>
+            <button id="tab-json" onclick="switchVulnTab('json')"
+                    class="pb-2 border-b-2 border-transparent">JSON</button>
+        </div>
+        <div class="p-4 overflow-y-auto">
+            <div id="vd-table-wrap">
+                <table class="w-full text-sm"><tbody id="vd-table"></tbody></table>
+            </div>
+            <pre id="vd-json" class="hidden text-xs whitespace-pre-wrap break-words"></pre>
+        </div>
+    </div>
+</div>
 <script>
 const sevColor = {
     critical: 'bg-red-600', high: 'bg-orange-500',
@@ -84,6 +142,100 @@ let timelineChart, severityChart, attackChart;
 
 function esc(s) {
     return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const vulnColor = {
+    Critical: 'bg-red-600', High: 'bg-orange-500',
+    Medium: 'bg-yellow-500 text-black', Low: 'bg-blue-500'
+};
+
+let vulnItems = [];
+
+function flatten(obj, prefix = '', out = {}) {
+    for (const [k, v] of Object.entries(obj ?? {})) {
+        const key = prefix ? prefix + '.' + k : k;
+        if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+            flatten(v, key, out);
+        } else {
+            out[key] = Array.isArray(v) ? JSON.stringify(v) : v;
+        }
+    }
+    return out;
+}
+
+function showVuln(i) {
+    const raw = vulnItems[i]?.raw;
+    if (!raw) return;
+    const flat = flatten(raw);
+
+    document.getElementById('vd-table').innerHTML = Object.keys(flat).sort().map(k => `
+        <tr class="border-b border-slate-700 align-top">
+            <td class="py-2 pr-4 font-mono text-xs text-slate-400 whitespace-nowrap">${esc(k)}</td>
+            <td class="py-2 break-words">${esc(flat[k])}</td>
+        </tr>`).join('');
+    document.getElementById('vd-json').textContent = JSON.stringify(raw, null, 2);
+
+    switchVulnTab('table');
+    document.getElementById('vuln-modal').classList.remove('hidden');
+}
+
+function closeVuln() {
+    document.getElementById('vuln-modal').classList.add('hidden');
+}
+
+function switchVulnTab(tab) {
+    document.getElementById('vd-table-wrap').classList.toggle('hidden', tab !== 'table');
+    document.getElementById('vd-json').classList.toggle('hidden', tab !== 'json');
+    ['table', 'json'].forEach(t => {
+        const on = t === tab;
+        const el = document.getElementById('tab-' + t);
+        el.classList.toggle('border-sky-400', on);
+        el.classList.toggle('text-sky-400', on);
+        el.classList.toggle('border-transparent', !on);
+    });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeVuln(); });
+
+async function loadVulns() {
+    const params = new URLSearchParams({ severity: document.getElementById('filter-vuln').value });
+    const res = await fetch('/api/vulnerabilities?' + params);
+    const d = await res.json();
+
+    document.getElementById('vuln-total').textContent = d.summary.total ?? '-';
+    document.getElementById('vuln-critical').textContent = d.summary.critical ?? '-';
+    document.getElementById('vuln-high').textContent = d.summary.high ?? '-';
+    document.getElementById('vuln-medium').textContent = d.summary.medium ?? '-';
+    document.getElementById('vuln-low').textContent = d.summary.low ?? '-';
+
+    vulnItems = d.items;
+    document.getElementById('vuln-body').innerHTML = d.items.map((v, i) => `
+        <tr class="border-b border-slate-700 hover:bg-slate-700/40">
+            <td class="px-3 py-3">
+              <button onclick="showVuln(${i})" aria-label="Lihat detail" title="Lihat detail"
+        class="p-1 rounded text-slate-400 hover:text-sky-400 hover:bg-slate-700">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+         stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M19.5 14.25v-9A2.25 2.25 0 0017.25 3h-9A2.25 2.25 0 006 5.25v13.5A2.25 2.25 0 008.25 21H12"/>
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M15 15.75a3.75 3.75 0 117.5 0 3.75 3.75 0 01-7.5 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M18 18.75L20.25 21"/>
+    </svg>
+</button>
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">${esc(v.agent)}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${esc(v.package)}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${esc(v.version)}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${esc(v.cve)}</td>
+            <td class="px-3 py-3">
+                <span class="px-2 py-0.5 rounded text-xs ${vulnColor[v.severity] ?? 'bg-slate-600'}">${esc(v.severity)}</span>
+            </td>
+            <td class="px-3 py-3">
+                <div class="max-w-xs truncate text-slate-300" title="${esc(v.description)}">${esc(v.description)}</div>
+            </td>
+        </tr>`).join('');
 }
 
 function makeCharts() {
@@ -144,6 +296,9 @@ makeCharts();
 loadData();
 setInterval(loadData, 10000);
 document.getElementById('filter-severity').addEventListener('change', loadData);
+loadVulns();
+setInterval(loadVulns, 60000);
+document.getElementById('filter-vuln').addEventListener('change', loadVulns);
 </script>
 </body>
 </html>

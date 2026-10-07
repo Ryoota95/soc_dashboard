@@ -17,4 +17,17 @@ return [
 
     // batas level Wazuh -> label severity
     'levels' => ['medium' => 4, 'high' => 7, 'critical' => 12],
+
+        // data kerentanan (vulnerability detection)
+    'vuln' => [
+        'index'  => env('OPENSEARCH_VULN_INDEX', 'wazuh-states-vulnerabilities-*'),
+        'fields' => [
+            'agent'       => 'agent.name',
+            'package'     => 'package.name',
+            'version'     => 'package.version',
+            'cve'         => 'vulnerability.id',
+            'severity'    => 'vulnerability.severity',
+            'description' => 'vulnerability.description',
+        ],
+    ],
 ];

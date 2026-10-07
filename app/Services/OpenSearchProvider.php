@@ -150,4 +150,76 @@ class OpenSearchProvider implements SecurityDataProvider
             ];
         })->all();
     }
+
+        private function vf(string $key): string
+    {
+        return config("opensearch.vuln.fields.$key");
+    }
+
+    private function searchVuln(array $body): array
+    {
+        $url = rtrim(config('opensearch.url'), '/') . '/' . config('opensearch.vuln.index') . '/_search';
+
+        return Http::withBasicAuth(config('opensearch.user'), config('opensearch.password'))
+            ->withOptions(['verify' => filter_var(config('opensearch.verify_ssl'), FILTER_VALIDATE_BOOLEAN)])
+            ->acceptJson()
+            ->timeout(15)
+            ->post($url, $body)
+            ->throw()
+            ->json();
+    }
+
+    public function vulnSummary(): array
+    {
+        $r = $this->searchVuln([
+            'size' => 0,
+            'track_total_hits' => true,
+            'aggs' => ['sev' => ['terms' => ['field' => $this->vf('severity'), 'size' => 10]]],
+        ]);
+
+        $total = $r['hits']['total']['value'] ?? 0;
+        $by = collect($r['aggregations']['sev']['buckets'] ?? [])
+            ->mapWithKeys(fn ($b) => [strtolower($b['key']) => $b['doc_count']]);
+
+        $critical = $by['critical'] ?? 0;
+        $high     = $by['high'] ?? 0;
+        $medium   = $by['medium'] ?? 0;
+        $low      = $by['low'] ?? 0;
+
+        return [
+            'total'    => $total,
+            'critical' => $critical,
+            'high'     => $high,
+            'medium'   => $medium,
+            'low'      => $low,
+            'other'    => $total - $critical - $high - $medium - $low,
+        ];
+    }
+
+        public function vulnerabilities(array $filters = [], int $limit = 20): array
+    {
+        $filter = [];
+
+        if (!empty($filters['severity'])) {
+            $filter[] = ['term' => [$this->vf('severity') => ucfirst(strtolower($filters['severity']))]];
+        }
+
+        $r = $this->searchVuln([
+            'size'  => $limit,
+            'query' => ['bool' => ['filter' => $filter]],
+        ]);
+
+        return collect($r['hits']['hits'] ?? [])->map(function ($h) {
+            $s = $h['_source'];
+            return [
+                'agent'       => data_get($s, $this->vf('agent')),
+                'package'     => data_get($s, $this->vf('package')),
+                'version'     => data_get($s, $this->vf('version')),
+                'cve'         => data_get($s, $this->vf('cve')),
+                'severity'    => data_get($s, $this->vf('severity')),
+                'description' => (string) data_get($s, $this->vf('description')),
+                'raw'         => array_merge(['_index' => $h['_index'] ?? null], $s),
+            ];
+        })->all();
+    }
 }

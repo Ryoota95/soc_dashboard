@@ -24,4 +24,11 @@ class DashboardController extends Controller
             'alerts'   => $this->data->recentAlerts($request->only(['severity', 'status'])),
         ]);
     }
+        public function vulnerabilities(Request $request)
+    {
+        return response()->json([
+            'summary' => $this->data->vulnSummary(),
+            'items'   => $this->data->vulnerabilities($request->only(['severity'])),
+        ]);
+    }
 }

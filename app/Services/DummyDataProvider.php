@@ -45,4 +45,14 @@ class DummyDataProvider implements SecurityDataProvider
             ->when($filters['status'] ?? null, fn ($q, $v) => $q->where('status', $v))
             ->latest('detected_at')->limit($limit)->get()->toArray();
     }
+
+        public function vulnSummary(): array
+    {
+        return ['total' => 0, 'critical' => 0, 'high' => 0, 'medium' => 0, 'low' => 0, 'other' => 0];
+    }
+
+    public function vulnerabilities(array $filters = [], int $limit = 20): array
+    {
+        return [];
+    }
 }
