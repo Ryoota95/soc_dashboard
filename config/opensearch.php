@@ -30,4 +30,18 @@ return [
             'description' => 'vulnerability.description',
         ],
     ],
+        // halaman detail agent
+    'agent' => [
+        'monitoring_index' => env('OPENSEARCH_MONITORING_INDEX', 'wazuh-monitoring-*'),
+        'hardware_index'   => env('OPENSEARCH_HARDWARE_INDEX', 'wazuh-states-inventory-hardware-*'),
+        'system_index'     => env('OPENSEARCH_SYSTEM_INDEX', 'wazuh-states-inventory-system-*'),
+        // nama field inventory (tebakan, cek pakai curl di langkah 7)
+        'fields' => [
+            'cpu_name'     => 'host.cpu.name',
+            'cpu_cores'    => 'host.cpu.cores',
+            'memory_total' => 'host.memory.total',
+            'serial'       => 'observer.serial_number',
+            'hostname'     => 'host.hostname',
+        ],
+    ],
 ];

@@ -143,6 +143,10 @@ let timelineChart, severityChart, attackChart;
 function esc(s) {
     return String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function agentLink(name) {
+    if (!name) return '-';
+    return `<a href="/agents/${encodeURIComponent(name)}" class="text-sky-400 hover:underline">${esc(name)}</a>`;
+}
 
 const vulnColor = {
     Critical: 'bg-red-600', High: 'bg-orange-500',
@@ -225,7 +229,7 @@ async function loadVulns() {
     </svg>
 </button>
             </td>
-            <td class="px-3 py-3 whitespace-nowrap">${esc(v.agent)}</td>
+            <td class="px-3 py-3 whitespace-nowrap">${agentLink(v.agent)}</td>
             <td class="px-3 py-3 whitespace-nowrap">${esc(v.package)}</td>
             <td class="px-3 py-3 whitespace-nowrap">${esc(v.version)}</td>
             <td class="px-3 py-3 whitespace-nowrap">${esc(v.cve)}</td>
@@ -272,7 +276,7 @@ async function loadData() {
     timelineChart.update();
 
     const order = ['critical', 'high', 'medium', 'low'];
-    const colors = { critical: '#dc2626', high: '#f97316', medium: '#eab308', low: '#3b82f6' };
+    const colors = { critical: '#ec0000', high: '#fc7514', medium: '#ffc721', low: '#3381ff' };
     severityChart.data.labels = order;
     severityChart.data.datasets[0].data = order.map(k => d.severity[k] ?? 0);
     severityChart.data.datasets[0].backgroundColor = order.map(k => colors[k]);
@@ -285,7 +289,7 @@ async function loadData() {
     document.getElementById('alert-body').innerHTML = d.alerts.map(a => `
         <tr class="border-b border-slate-700">
             <td class="py-2">${new Date(a.detected_at).toLocaleString('id-ID')}</td>
-            <td>${esc(a.agent)}</td>
+            <td>${agentLink(a.agent)}</td>
             <td>${esc(a.rule)}</td>
             <td>${esc(a.level)}</td>
             <td><span class="px-2 py-0.5 rounded text-xs ${sevColor[a.severity] ?? ''}">${esc(a.severity)}</span></td>
